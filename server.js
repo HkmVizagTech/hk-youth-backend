@@ -20,13 +20,13 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+    origin: "*",
     methods: ["GET", "POST"],
   },
 });
 
 // ── Middleware ──────────────────────────────────────────────
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" }));
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 
 // ── REST Routes ─────────────────────────────────────────────
