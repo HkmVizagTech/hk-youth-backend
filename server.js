@@ -12,6 +12,7 @@ import eventRoutes from "./routes/events.js";
 import sadhanaRoutes from "./routes/sadhana.js";
 import communityRoutes from "./routes/community.js";
 import couponRoutes from "./routes/coupons.js";
+import attendanceRoutes from "./routes/attendance.js";
 import { setupSockets } from "./sockets/index.js";
 
 dotenv.config();
@@ -26,9 +27,14 @@ const io = new Server(httpServer, {
   },
 });
 
-// ── Middleware ──────────────────────────────────────────────
-app.use(cors({ origin: "*" }));
+app.use(cors());
 app.use(express.json());
+
+// Log every request
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+});
 
 // ── REST Routes ─────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
@@ -38,6 +44,7 @@ app.use("/api/events", eventRoutes);
 app.use("/api/sadhana", sadhanaRoutes);
 app.use("/api/community", communityRoutes);
 app.use("/api/coupons", couponRoutes);
+app.use("/api/attendance", attendanceRoutes);
 
 app.get("/", (req, res) => res.json({ status: "Hare Krishna Youth API Running 🙏" }));
 
@@ -54,8 +61,8 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected");
-    httpServer.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+    httpServer.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
