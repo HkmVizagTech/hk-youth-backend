@@ -30,12 +30,12 @@ mongoose.connect(MONGO_URI).then(async () => {
     await Event.insertMany([
         {
             title: 'Mangala Arati Satsang',
-            type: 'weekly',
+            type: 'program',
             date: new Date('2026-04-12T05:00:00.000Z'),
             location: 'Temple Hall',
-            capacity: 40,
-            registered: [users[0]._id],
-            creator: users[1]._id
+            maxCapacity: 40,
+            registeredUsers: [users[0]._id],
+            organizer: users[1]._id
         }
     ]);
 

@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
   spiritualName: { type: String, default: "" },
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ["youth", "guide", "admin", "security"], default: "youth" },
+  role: { type: String, enum: ["youth", "member", "guide", "admin", "head", "security"], default: "member" },
   avatarSeed: { type: Number, default: 0 },
   center: { type: String, default: "FOLK HKM Visakhapatnam" },
   batch: { type: String, default: "" },
