@@ -33,7 +33,7 @@ router.post("/circles/:id/join", protect, async (req, res) => {
 router.get("/devotees", protect, async (req, res) => {
   try {
     const users = await User.find({ _id: { $ne: req.user.id } })
-      .select("name spiritualName username role avatarSeed followers")
+      .select("name spiritualName username role avatarSeed followers batch center")
       .limit(30);
     res.json(users);
   } catch (err) {

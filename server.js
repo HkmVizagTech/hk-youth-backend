@@ -11,6 +11,7 @@ import chatRoutes from "./routes/chat.js";
 import eventRoutes from "./routes/events.js";
 import sadhanaRoutes from "./routes/sadhana.js";
 import communityRoutes from "./routes/community.js";
+import couponRoutes from "./routes/coupons.js";
 import { setupSockets } from "./sockets/index.js";
 
 dotenv.config();
@@ -36,6 +37,7 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/sadhana", sadhanaRoutes);
 app.use("/api/community", communityRoutes);
+app.use("/api/coupons", couponRoutes);
 
 app.get("/", (req, res) => res.json({ status: "Hare Krishna Youth API Running 🙏" }));
 

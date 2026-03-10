@@ -5,6 +5,7 @@ import User from './models/User.js';
 import Event from './models/Event.js';
 import Post from './models/Post.js';
 import Sadhana from './models/Sadhana.js';
+import Coupon from './models/Coupon.js';
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ mongoose.connect(MONGO_URI).then(async () => {
     await Event.deleteMany({});
     await Post.deleteMany({});
     await Sadhana.deleteMany({});
+    await Coupon.deleteMany({});
 
     const hash = await bcrypt.hash('123456', 10);
 
@@ -61,6 +63,25 @@ mongoose.connect(MONGO_URI).then(async () => {
             rounds: 16,
             readingMins: 30,
             mangala: true
+        }
+    ]);
+
+    await Coupon.insertMany([
+        {
+            code: 'PRSDM-X9W2',
+            type: 'Prasadam',
+            event: 'Sunday Love Feast',
+            expiryDate: new Date('2026-03-30T00:00:00.000Z'),
+            assignedTo: users[0]._id, // member
+            isUsed: false
+        },
+        {
+            code: 'BOKFS-L4P8',
+            type: 'Book Fest',
+            event: 'Gita Marathon',
+            expiryDate: new Date('2026-04-10T00:00:00.000Z'),
+            assignedTo: users[0]._id, // member
+            isUsed: false
         }
     ]);
 
