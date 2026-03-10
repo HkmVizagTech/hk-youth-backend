@@ -1,10 +1,14 @@
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv';
 import User from './models/User.js';
 import Event from './models/Event.js';
 import Post from './models/Post.js';
 import Sadhana from './models/Sadhana.js';
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hk-youth-db';
+dotenv.config();
+
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hk-youth-realtime';
 
 mongoose.connect(MONGO_URI).then(async () => {
     console.log('Connected to DB. Seeding data...');
@@ -14,10 +18,13 @@ mongoose.connect(MONGO_URI).then(async () => {
     await Post.deleteMany({});
     await Sadhana.deleteMany({});
 
+    const hash = await bcrypt.hash('123456', 10);
+
     const users = await User.insertMany([
-        { _id: new mongoose.Types.ObjectId(), handle: 'member', email: 'member@folk-vizag.org', name: 'Krishna Das', role: 'member' },
-        { _id: new mongoose.Types.ObjectId(), handle: 'guide', email: 'guide@folk-vizag.org', name: 'Vaishnava Das', role: 'guide' },
-        { _id: new mongoose.Types.ObjectId(), handle: 'admin', email: 'admin@folk-vizag.org', name: 'Admin Prabhu', role: 'admin' },
+        { _id: new mongoose.Types.ObjectId(), username: 'member@folk-vizag.org', password: hash, email: 'member@folk-vizag.org', name: 'Karthik', spiritualName: 'Krishna Das', role: 'member', center: 'Visakhapatnam', batch: 'Students' },
+        { _id: new mongoose.Types.ObjectId(), username: 'guide@folk-vizag.org', password: hash, email: 'guide@folk-vizag.org', name: 'Suresh', spiritualName: 'Vaishnava Das', role: 'guide', center: 'Visakhapatnam', batch: 'Professionals' },
+        { _id: new mongoose.Types.ObjectId(), username: 'admin@folk-vizag.org', password: hash, email: 'admin@folk-vizag.org', name: 'Ramesh', spiritualName: 'Admin Prabhu', role: 'admin', center: 'Visakhapatnam', batch: 'Center Admin' },
+        { _id: new mongoose.Types.ObjectId(), username: 'security@folk-vizag.org', password: hash, email: 'security@folk-vizag.org', name: 'Security Guard', spiritualName: 'Security Das', role: 'security', center: 'Visakhapatnam', batch: 'Security' }
     ]);
 
     await Event.insertMany([
@@ -28,32 +35,38 @@ mongoose.connect(MONGO_URI).then(async () => {
             location: 'Temple Hall',
             capacity: 40,
             registered: [users[0]._id],
-            creatorId: users[1]._id
+            creator: users[1]._id
         }
     ]);
 
     await Post.insertMany([
         {
-            authorId: users[0]._id,
-            text: 'Beautiful darshan of Sri Sri Radha Madanmohan today morning!',
-            tags: ['Satsang', 'Darshan'],
+            author: users[0]._id,
+            content: 'Beautiful darshan of Sri Sri Radha Madanmohan today morning!',
+            tag: 'Darshan',
             likes: []
+        },
+        {
+            author: users[1]._id,
+            content: '"Chanting the holy name is the only way in this age..." Just finished my 16 rounds before 6 AM. The peaceful atmosphere really helps focus the mind.',
+            tag: 'Realization',
+            likes: [users[0]._id]
         }
     ]);
 
     await Sadhana.insertMany([
         {
-            userId: users[0]._id,
+            user: users[0]._id,
             date: new Date().toISOString().split('T')[0],
-            japaRounds: 16,
-            readingMinutes: 30,
-            mangalaArati: true
+            rounds: 16,
+            readingMins: 30,
+            mangala: true
         }
     ]);
 
     console.log('Seed complete.');
     process.exit();
 }).catch(err => {
-    console.error('Mongo not running or error', err.message);
-    process.exit(0); // exit gracefully so CI doesn't fail
+    console.error('Mongo error', err);
+    process.exit(1);
 });
