@@ -1,0 +1,62 @@
+﻿node : node:internal/modules/
+package_json_reader:256
+At line:1 char:1
++ node server.js *>&1 | 
+Out-File -FilePath 
+error_log_utf8.txt -Encoding 
+...
++ ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (node:in  
+  ternal/m...json_reader:2   
+ 56:String) [], RemoteExc    
+eption
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+  throw new ERR_MODULE_NOT_FO
+UND(packageName, 
+fileURLToPath(base), null);
+        ^
+
+Error 
+[ERR_MODULE_NOT_FOUND]: 
+Cannot find package 
+'@prisma/client' imported 
+from C:\Users\jamim\.gemini\a
+ntigravity\scratch\hk-youth-b
+ackend\lib\providers.js
+    at 
+Object.getPackageJSONURL (nod
+e:internal/modules/package_js
+on_reader:256:9)
+    at packageResolve (node:i
+nternal/modules/esm/resolve:7
+68:81)
+    at moduleResolve (node:in
+ternal/modules/esm/resolve:85
+4:18)
+    at defaultResolve (node:i
+nternal/modules/esm/resolve:9
+84:11)
+    at 
+ModuleLoader.defaultResolve (
+node:internal/modules/esm/loa
+der:780:12)
+    at #cachedDefaultResolve 
+(node:internal/modules/esm/lo
+ader:704:25)
+    at ModuleLoader.resolve (
+node:internal/modules/esm/loa
+der:687:38)
+    at ModuleLoader.getModule
+JobForImport (node:internal/m
+odules/esm/loader:305:38)
+    at ModuleJob._link (node:
+internal/modules/esm/module_j
+ob:175:49) {
+  code: 
+'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v22.17.0

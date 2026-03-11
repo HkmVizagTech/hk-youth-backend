@@ -1,93 +1,101 @@
-import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
-import dotenv from 'dotenv';
-import User from './models/User.js';
-import Event from './models/Event.js';
-import Post from './models/Post.js';
-import Sadhana from './models/Sadhana.js';
-import Coupon from './models/Coupon.js';
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
 
-dotenv.config();
+async function main() {
+    console.log('🌱 Seeding HKM Vizag FOLK Platform (MongoDB Mode)...');
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hk-youth-realtime';
-
-mongoose.connect(MONGO_URI).then(async () => {
-    console.log('Connected to DB. Seeding data...');
-
-    await User.deleteMany({});
-    await Event.deleteMany({});
-    await Post.deleteMany({});
-    await Sadhana.deleteMany({});
-    await Coupon.deleteMany({});
-
-    const hash = await bcrypt.hash('123456', 10);
-
-    const users = await User.insertMany([
-        { _id: new mongoose.Types.ObjectId(), username: 'member@folk-vizag.org', password: hash, email: 'member@folk-vizag.org', name: 'Karthik', spiritualName: 'Krishna Das', role: 'member', center: 'Visakhapatnam', batch: 'Students' },
-        { _id: new mongoose.Types.ObjectId(), username: 'guide@folk-vizag.org', password: hash, email: 'guide@folk-vizag.org', name: 'Suresh', spiritualName: 'Vaishnava Das', role: 'guide', center: 'Visakhapatnam', batch: 'Professionals' },
-        { _id: new mongoose.Types.ObjectId(), username: 'admin@folk-vizag.org', password: hash, email: 'admin@folk-vizag.org', name: 'Ramesh', spiritualName: 'Admin Prabhu', role: 'admin', center: 'Visakhapatnam', batch: 'Center Admin' },
-        { _id: new mongoose.Types.ObjectId(), username: 'security@folk-vizag.org', password: hash, email: 'security@folk-vizag.org', name: 'Security Guard', spiritualName: 'Security Das', role: 'security', center: 'Visakhapatnam', batch: 'Security' }
-    ]);
-
-    await Event.insertMany([
-        {
-            title: 'Mangala Arati Satsang',
-            type: 'program',
-            date: new Date('2026-04-12T05:00:00.000Z'),
-            location: 'Temple Hall',
-            maxCapacity: 40,
-            registeredUsers: [users[0]._id],
-            organizer: users[1]._id
+    // 1. Tenant
+    const tenant = await prisma.tenant.create({
+        data: {
+            name: 'Hare Krishna Movement India'
         }
-    ]);
+    });
 
-    await Post.insertMany([
-        {
-            author: users[0]._id,
-            content: 'Beautiful darshan of Sri Sri Radha Madanmohan today morning!',
-            tag: 'Darshan',
-            likes: []
-        },
-        {
-            author: users[1]._id,
-            content: '"Chanting the holy name is the only way in this age..." Just finished my 16 rounds before 6 AM. The peaceful atmosphere really helps focus the mind.',
-            tag: 'Realization',
-            likes: [users[0]._id]
+    // 2. Centers
+    const vizagCenter = await prisma.center.create({
+        data: {
+            tenantId: tenant.id,
+            name: 'HKM Visakhapatnam',
+            slug: 'hkm-vizag',
+            city: 'Visakhapatnam',
+            state: 'Andhra Pradesh',
+            timezone: 'Asia/Kolkata',
+            deityName: 'Sri Sri Radha Madanmohan'
         }
-    ]);
+    });
 
-    await Sadhana.insertMany([
-        {
-            user: users[0]._id,
-            date: new Date().toISOString().split('T')[0],
-            rounds: 16,
-            readingMins: 30,
-            mangala: true
+    // 3. Batches
+    const batches = [];
+    for (let i = 1; i <= 10; i++) {
+        const batch = await prisma.batch.create({
+            data: {
+                name: `FOLK 2026 Batch ${i}`,
+                centerId: vizagCenter.id,
+            }
+        });
+        batches.push(batch);
+    }
+
+    // 4. Guides
+    const guideNames = ['Vaishnava Das', 'Krishna Bhakta Das', 'Govinda Das', 'Madhava Das', 'Bhakti Yoga Das'];
+    const guides = [];
+    for (const name of guideNames) {
+        const user = await prisma.user.create({
+            data: {
+                displayName: name,
+                spiritualName: name,
+                phone: `999990000${guides.length}`,
+                email: `${name.toLowerCase().replace(/ /g, '.')}@hkmvizag.org`,
+                role: 'folk_guide',
+                centerId: vizagCenter.id
+            }
+        });
+        guides.push(user);
+
+        // Assign guide to a batch
+        await prisma.batchGuide.create({
+            data: {
+                userId: user.id,
+                batchId: batches[guides.length - 1].id,
+                isLead: true
+            }
+        });
+    }
+
+    // 5. Admin
+    const admin = await prisma.user.create({
+        data: {
+            displayName: 'Temple Admin',
+            spiritualName: 'Admin Das',
+            phone: '8888800000',
+            email: 'admin@hkmvizag.org',
+            role: 'folk_admin',
+            centerId: vizagCenter.id
         }
-    ]);
+    });
 
-    await Coupon.insertMany([
-        {
-            code: 'PRSDM-X9W2',
-            type: 'Prasadam',
-            event: 'Sunday Love Feast',
-            expiryDate: new Date('2026-03-30T00:00:00.000Z'),
-            assignedTo: users[0]._id, // member
-            isUsed: false
-        },
-        {
-            code: 'BOKFS-L4P8',
-            type: 'Book Fest',
-            event: 'Gita Marathon',
-            expiryDate: new Date('2026-04-10T00:00:00.000Z'),
-            assignedTo: users[0]._id, // member
-            isUsed: false
-        }
-    ]);
+    // 6. Users (Members)
+    for (let i = 1; i <= 20; i++) {
+        await prisma.user.create({
+            data: {
+                displayName: `Devotee ${i}`,
+                phone: `98765432${i.toString().padStart(2, '0')}`,
+                email: `devotee${i}@gmail.com`,
+                role: 'folk_member',
+                centerId: vizagCenter.id,
+                batchId: batches[i % 10].id
+            }
+        });
+    }
 
-    console.log('Seed complete.');
-    process.exit();
-}).catch(err => {
-    console.error('Mongo error', err);
-    process.exit(1);
-});
+    console.log('✅ Seeded Tenant, Center, Batches, Guides, Admin, Members.');
+}
+
+main()
+    .catch((e) => {
+        console.error(e);
+        process.exit(1);
+    })
+    .finally(async () => {
+        await prisma.$disconnect();
+    });

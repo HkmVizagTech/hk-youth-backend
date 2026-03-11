@@ -1,5 +1,5 @@
-import Thread from "../models/Thread.js";
 import jwt from "jsonwebtoken";
+import { prisma } from "../lib/providers.js";
 
 export const setupSockets = (io) => {
   // Auth middleware for sockets
@@ -33,21 +33,24 @@ export const setupSockets = (io) => {
 
     socket.on("send_message", async ({ threadId, text }) => {
       try {
-        const thread = await Thread.findById(threadId);
-        if (!thread) return;
+        const message = await prisma.message.create({
+          data: {
+            content: text,
+            threadId: threadId,
+            senderId: userId
+          },
+          include: {
+            sender: { select: { id: true, displayName: true, spiritualName: true } }
+          }
+        });
 
-        const message = { sender: userId, text, createdAt: new Date() };
-        thread.messages.push(message);
-        thread.lastMessage = text;
-        thread.updatedAt = new Date();
-        await thread.save();
-
-        const populated = await Thread.findById(threadId)
-          .populate("messages.sender", "name spiritualName avatarSeed");
-        const newMsg = populated.messages[populated.messages.length - 1];
+        await prisma.thread.update({
+          where: { id: threadId },
+          data: { lastMessage: text, updatedAt: new Date() }
+        });
 
         // Emit to all users in this chat thread room
-        io.to(`thread:${threadId}`).emit("receive_message", { threadId, message: newMsg });
+        io.to(`thread:${threadId}`).emit("receive_message", { threadId, message });
       } catch (err) {
         socket.emit("error", { message: err.message });
       }

@@ -1,81 +1,64 @@
-# Hare Krishna Youth — Backend
+# FOLK — HKM Vizag
 
-Real-time Node.js + Express + MongoDB + Socket.IO backend for the **Hare Krishna Youth**  (HKY) application.
+Hare Krishna! 🙏 Welcome to the backend repository of the real-time **FOLK Platform** for **Hare Krishna Movement Visakhapatnam (HKM Vizag)** under the lotus feet of Sri Sri Radha Madanmohan.
 
-## Stack
-- **Runtime**: Node.js (ESM)
-- **Framework**: Express
-- **Database**: MongoDB (Mongoose ODM)
-- **Real-Time**: Socket.IO
-- **Auth**: JWT + bcrypt
+## Prerequisites
+- Node.js 18+
+- PostgreSQL
+- Redis
+- All environment variables filled in `.env` based on `.env.example`.
 
 ## Setup
+1. `npm install`
+2. `cp .env.example .env` and fill all variables.
+3. `npx prisma migrate dev --name init`
+4. `node seed.js`
+5. `npm run dev`
 
-### 1. Clone and Install
-```bash
-cd hk-youth-backend
-npm install
-```
+## Deployment
+Recommended: Vercel for frontend/Next.js API.
+For Node backend (WebSocket + Express): Render or self-hosted Node instance.
 
-### 2. Create `.env` from template
-```bash
-cp .env.example .env
-```
-Then fill in your **MongoDB Atlas connection string** and a **JWT secret**:
-```
-MONGO_URI=mongodb+srv://<user>:<pass>@cluster0.mongodb.net/hk-youth?retryWrites=true&w=majority
-JWT_SECRET=your_strong_secret_here
-PORT=5000
-CLIENT_ORIGIN=http://localhost:5173
-```
+## Provider Setup Guides
 
-### 3. Run Development Server
-```bash
-npm run dev
-```
-Server starts at `http://localhost:5000`
+### 1. Twilio Verify Setup
+1. Go to Twilio Console, sign up, and create a project.
+2. Navigate to Verify > Services > Create Service.
+3. Name it "FOLK" and copy the `Service SID` to `TWILIO_VERIFY_SID`.
+4. Copy `Account SID` and `Auth Token` to `.env`.
+5. Ensure SMS channel is active.
 
-## API Reference
+### 2. Razorpay Live Mode Activation
+1. Complete KYC verification on Razorpay Dashboard.
+2. Switch to **Live Mode**.
+3. Go to Settings > API Keys > Generate Live Key.
+4. Copy `Key Id` and `Key Secret` to `.env`.
+5. Setup Webhook URL mapping to `/api/webhooks/razorpay`.
 
-| Method | Route | Auth | Description |
-|--------|-------|------|-------------|
-| POST | `/api/auth/register` | — | Register |
-| POST | `/api/auth/login` | — | Login |
-| GET | `/api/posts` | ✅ | Get feed |
-| POST | `/api/posts` | ✅ | Create post |
-| POST | `/api/posts/:id/like` | ✅ | Toggle like |
-| POST | `/api/posts/:id/comment` | ✅ | Add comment |
-| GET | `/api/events` | ✅ | Get events |
-| POST | `/api/events` | Guide/Admin | Create event |
-| POST | `/api/events/:id/register` | ✅ | Register/Unregister |
-| GET | `/api/sadhana` | ✅ | My sadhana logs |
-| POST | `/api/sadhana` | ✅ | Log today's sadhana |
-| GET | `/api/chat` | ✅ | My chat threads |
-| GET | `/api/chat/:threadId` | ✅ | Thread messages |
-| GET | `/api/community/circles` | ✅ | All circles |
-| POST | `/api/community/circles/:id/join` | ✅ | Join/Leave circle |
-| GET | `/api/community/devotees` | ✅ | All devotees |
-| POST | `/api/community/follow/:id` | ✅ | Follow/Unfollow |
+### 3. Meta WhatsApp Business API Setup
+1. Create a Meta Developer App.
+2. Add the WhatsApp product to the app.
+3. Add a phone number and complete business verification.
+4. Generate a permanent access token via System User.
+5. Create template `folk_coupon_issue`.
+6. Configure Webhooks to receive message status.
+7. Fill `.env` with Token, Phone Number ID, and Business Account ID.
 
-## Socket.IO Events
+### 4. Cloudflare R2 Bucket Setup
+1. In Cloudflare Dashboard, go to R2 > Create bucket.
+2. Name it `folk-hkmvizag`.
+3. Enable public access via a custom domain.
+4. Create R2 API Tokens (Edit permissions).
 
-### Client → Server
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `join_thread` | `threadId` | Join a chat room |
-| `leave_thread` | `threadId` | Leave a chat room |
-| `send_message` | `{ threadId, text }` | Send a message |
-| `typing` | `{ threadId }` | Show typing indicator |
-| `stop_typing` | `{ threadId }` | Hide typing indicator |
+### 5. Upstash Redis Setup
+1. Create an account on Upstash.
+2. Create a Redis database (Global/Regional).
+3. Copy `REDIS_URL` and `REDIS_TOKEN` to `.env`.
 
-### Server → Client
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `new_post` | post object | New post in feed |
-| `post_liked` | `{ postId, likes }` | Like count updated |
-| `new_comment` | `{ postId, comment }` | New comment |
-| `new_event` | event object | New event created |
-| `event_updated` | `{ eventId, registeredCount }` | Registration changed |
-| `receive_message` | `{ threadId, message }` | New chat message |
-| `user_typing` | `{ userId, name }` | Someone is typing |
-| `user_stop_typing` | `{ userId }` | Stopped typing |
+### 6. VAPID Key Generation
+1. `npx web-push generate-vapid-keys`
+2. Copy `Public Key` to `VAPID_PUBLIC_KEY` and `NEXT_PUBLIC_VAPID_PUBLIC_KEY`.
+3. Copy `Private Key` to `VAPID_PRIVATE_KEY`.
+
+All Glories to Srila Prabhupada!
+Sri Sri Radha Madanmohan ki Jai!

@@ -1,9 +1,9 @@
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
+import { prisma } from "./lib/providers.js";
 
 import authRoutes from "./routes/auth.js";
 import postRoutes from "./routes/posts.js";
@@ -13,6 +13,7 @@ import sadhanaRoutes from "./routes/sadhana.js";
 import communityRoutes from "./routes/community.js";
 import couponRoutes from "./routes/coupons.js";
 import attendanceRoutes from "./routes/attendance.js";
+import sankirtanRoutes from "./routes/sankirtan.js";
 import { setupSockets } from "./sockets/index.js";
 
 dotenv.config();
@@ -45,8 +46,19 @@ app.use("/api/sadhana", sadhanaRoutes);
 app.use("/api/community", communityRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/sankirtan", sankirtanRoutes);
 
-app.get("/", (req, res) => res.json({ status: "Hare Krishna Youth API Running 🙏" }));
+app.get("/", (req, res) => res.json({ status: "FOLK HKM Vizag API Running 🙏" }));
+
+// ── DEV ONLY: Read OTP from in-memory store ───────────────────
+if (process.env.NODE_ENV !== 'production') {
+  import('./lib/providers.js').then(({ redis }) => {
+    app.get('/api/dev/otp/:identifier', async (req, res) => {
+      const otp = await redis.get(`otp:${req.params.identifier}`);
+      res.json({ otp: otp || null });
+    });
+  });
+}
 
 // ── Attach io to app for use in route handlers ───────────────
 app.set("io", io);
@@ -54,18 +66,11 @@ app.set("io", io);
 // ── Real-Time Sockets ────────────────────────────────────────
 setupSockets(io);
 
-// ── Database & Start ─────────────────────────────────────────
+// ── Start Server ─────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("✅ MongoDB connected");
-    httpServer.listen(PORT, "0.0.0.0", () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection error:", err.message);
-    process.exit(1);
-  });
+httpServer.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🙏 All Glories to Srila Prabhupada!`);
+});
+
