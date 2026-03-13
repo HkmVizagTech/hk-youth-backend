@@ -3,7 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
-import { prisma } from "./lib/providers.js";
+// import { prisma } from "./lib/providers.js"; // Removed Prisma
 
 import authRoutes from "./routes/auth.js";
 import postRoutes from "./routes/posts.js";

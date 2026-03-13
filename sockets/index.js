@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
-import { prisma } from "../lib/providers.js";
+import Message from "../models/Message.js";
+import Thread from "../models/Thread.js";
 
 export const setupSockets = (io) => {
   // Auth middleware for sockets
@@ -7,7 +8,7 @@ export const setupSockets = (io) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error("Authentication error"));
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
       socket.user = decoded;
       next();
     } catch {
@@ -17,7 +18,7 @@ export const setupSockets = (io) => {
 
   io.on("connection", (socket) => {
     const userId = socket.user.id;
-    console.log(`🔌 User connected: ${socket.user.username} (${socket.id})`);
+    console.log(`🔌 User connected: ${socket.user.name || 'Unknown'} (${socket.id})`);
 
     // Join user's personal room (for direct notifications)
     socket.join(`user:${userId}`);
@@ -33,24 +34,29 @@ export const setupSockets = (io) => {
 
     socket.on("send_message", async ({ threadId, text }) => {
       try {
-        const message = await prisma.message.create({
-          data: {
-            content: text,
-            threadId: threadId,
-            senderId: userId
-          },
-          include: {
-            sender: { select: { id: true, displayName: true, spiritualName: true } }
-          }
+        const message = await Message.create({
+          content: text,
+          threadId: threadId,
+          senderId: userId
         });
 
-        await prisma.thread.update({
-          where: { id: threadId },
-          data: { lastMessage: text, updatedAt: new Date() }
+        const populatedMessage = await Message.findById(message._id)
+          .populate('senderId', 'displayName spiritualName')
+          .lean();
+
+        const formattedMessage = {
+          ...populatedMessage,
+          id: populatedMessage._id,
+          sender: { ...populatedMessage.senderId, id: populatedMessage.senderId._id }
+        };
+
+        await Thread.findByIdAndUpdate(threadId, {
+          lastMessage: text,
+          updatedAt: new Date()
         });
 
         // Emit to all users in this chat thread room
-        io.to(`thread:${threadId}`).emit("receive_message", { threadId, message });
+        io.to(`thread:${threadId}`).emit("receive_message", { threadId, message: formattedMessage });
       } catch (err) {
         socket.emit("error", { message: err.message });
       }
@@ -66,7 +72,7 @@ export const setupSockets = (io) => {
     });
 
     socket.on("disconnect", () => {
-      console.log(`🔌 Disconnected: ${socket.user.username}`);
+      console.log(`🔌 Disconnected: ${socket.user.name || 'Unknown'}`);
     });
   });
 };
