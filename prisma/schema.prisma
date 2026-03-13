@@ -58,6 +58,7 @@ model User {
   role              String    @default("folk_member")
   phone             String?   @unique
   email             String?   @unique
+  password          String?
   displayName       String
   spiritualName     String?
   initiatedBy       String    @default("HDG A.C. Bhaktivedanta Swami Prabhupada")

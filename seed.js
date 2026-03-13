@@ -47,6 +47,7 @@ async function main() {
                 phone: `999990000${guides.length}`,
                 email: `${name.toLowerCase().replace(/ /g, '.')}@hkmvizag.org`,
                 role: 'folk_guide',
+                password: "password123",
                 centerId: vizagCenter.id
             }
         });
@@ -63,13 +64,16 @@ async function main() {
     }
 
     // 5. Admin
-    const admin = await prisma.user.create({
-        data: {
+    const admin = await prisma.user.upsert({
+        where: { email: 'admin@hkmvizag.org' },
+        update: { password: 'adminpassword' },
+        create: {
             displayName: 'Temple Admin',
             spiritualName: 'Admin Das',
             phone: '8888800000',
             email: 'admin@hkmvizag.org',
             role: 'folk_admin',
+            password: "adminpassword",
             centerId: vizagCenter.id
         }
     });
@@ -82,6 +86,7 @@ async function main() {
                 phone: `98765432${i.toString().padStart(2, '0')}`,
                 email: `devotee${i}@gmail.com`,
                 role: 'folk_member',
+                password: "password123",
                 centerId: vizagCenter.id,
                 batchId: batches[i % 10].id
             }
