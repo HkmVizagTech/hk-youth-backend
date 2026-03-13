@@ -1,5 +1,6 @@
 import express from "express";
-import { prisma } from "../lib/providers.js";
+import Event from "../models/Event.js";
+import EventRegistration from "../models/EventRegistration.js";
 import { protect, requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -7,15 +8,20 @@ const router = express.Router();
 // GET /api/events
 router.get("/", protect, async (req, res) => {
   try {
-    const events = await prisma.event.findMany({
-      orderBy: { startTime: "asc" },
-      include: {
-        registrations: {
-          select: { userId: true, status: true }
-        }
-      }
-    });
-    res.json(events);
+    const events = await Event.find()
+      .sort({ startTime: 1 })
+      .lean();
+
+    const formatted = await Promise.all(events.map(async event => {
+      const registrations = await EventRegistration.find({ eventId: event._id }, 'userId status').lean();
+      return {
+        ...event,
+        id: event._id,
+        registrations: registrations.map(r => ({ ...r, id: r._id }))
+      };
+    }));
+
+    res.json(formatted);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -25,19 +31,20 @@ router.get("/", protect, async (req, res) => {
 router.post("/", protect, requireRole("guide", "admin", "folk_guide", "folk_admin"), async (req, res) => {
   try {
     const { title, description, startTime, endTime, scope, centerId, batchId } = req.body;
-    const event = await prisma.event.create({
-      data: {
-        title,
-        description,
-        startTime: new Date(startTime),
-        endTime: endTime ? new Date(endTime) : null,
-        scope: scope || 'center',
-        centerId,
-        batchId
-      }
+    const event = await Event.create({
+      title,
+      description,
+      startTime: new Date(startTime),
+      endTime: endTime ? new Date(endTime) : null,
+      scope: scope || 'center',
+      centerId: centerId || null,
+      batchId: batchId || null
     });
-    req.app.get("io").emit("new_event", event);
-    res.status(201).json(event);
+
+    const formatted = { ...event.toObject(), id: event._id };
+
+    req.app.get("io").emit("new_event", formatted);
+    res.status(201).json(formatted);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -46,28 +53,30 @@ router.post("/", protect, requireRole("guide", "admin", "folk_guide", "folk_admi
 // POST /api/events/:id/register — Toggle registration
 router.post("/:id/register", protect, async (req, res) => {
   try {
-    const event = await prisma.event.findUnique({
-      where: { id: req.params.id },
-      include: { registrations: true }
-    });
+    const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ message: "Event not found" });
 
-    const existing = await prisma.eventRegistration.findFirst({
-      where: { eventId: req.params.id, userId: req.user.id }
+    const existing = await EventRegistration.findOne({
+      eventId: req.params.id,
+      userId: req.user.id
     });
 
+    let registered = false;
     if (existing) {
-      await prisma.eventRegistration.delete({ where: { id: existing.id } });
-      res.json({ registered: false });
+      await EventRegistration.deleteOne({ _id: existing._id });
+      registered = false;
     } else {
-      await prisma.eventRegistration.create({
-        data: { eventId: req.params.id, userId: req.user.id }
+      await EventRegistration.create({
+        eventId: req.params.id,
+        userId: req.user.id
       });
-      res.json({ registered: true });
+      registered = true;
     }
 
-    const count = await prisma.eventRegistration.count({ where: { eventId: req.params.id } });
-    req.app.get("io").emit("event_updated", { eventId: event.id, registeredCount: count });
+    const count = await EventRegistration.countDocuments({ eventId: req.params.id });
+    req.app.get("io").emit("event_updated", { eventId: event._id, registeredCount: count });
+
+    res.json({ registered });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

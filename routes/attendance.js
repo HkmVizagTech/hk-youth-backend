@@ -1,5 +1,8 @@
 import express from "express";
-import { prisma } from "../lib/providers.js";
+import Attendance from "../models/Attendance.js";
+import User from "../models/User.js";
+import SankirtanLog from "../models/SankirtanLog.js";
+import SadhanaLog from "../models/SadhanaLog.js";
 import { protect } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -12,17 +15,15 @@ router.post("/check-in", protect, async (req, res) => {
         const scannerId = req.user.id;
 
         // Validate devotee exists
-        const devotee = await prisma.user.findUnique({ where: { id: devoteeId } });
+        const devotee = await User.findById(devoteeId);
         if (!devotee) return res.status(404).json({ message: "Devotee not found" });
 
         // Check if recently checked in (prevent duplicates)
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        const recent = await prisma.attendance.findFirst({
-            where: {
-                userId: devoteeId,
-                type: type || "Daily",
-                checkInTime: { gt: oneHourAgo }
-            }
+        const recent = await Attendance.findOne({
+            userId: devoteeId,
+            type: type || "Daily",
+            checkInTime: { $gt: oneHourAgo }
         });
 
         if (recent) {
@@ -32,26 +33,31 @@ router.post("/check-in", protect, async (req, res) => {
             });
         }
 
-        const attendance = await prisma.attendance.create({
-            data: {
-                userId: devoteeId,
-                scannerId: scannerId,
-                type: type || "Daily",
-                status: status || "Present",
-                location: location || "Main Hall"
-            },
-            include: {
-                user: { select: { id: true, displayName: true, spiritualName: true, role: true } }
-            }
+        const attendance = await Attendance.create({
+            userId: devoteeId,
+            scannerId: scannerId,
+            type: type || "Daily",
+            status: status || "Present",
+            location: location || "Main Hall"
         });
+
+        const populated = await Attendance.findById(attendance._id)
+            .populate('userId', 'displayName spiritualName role')
+            .lean();
+
+        const formatted = {
+            ...populated,
+            id: populated._id,
+            user: { ...populated.userId, id: populated.userId._id }
+        };
 
         // Emit live event
         const io = req.app.get("io");
         if (io) {
-            io.emit("attendance_update", attendance);
+            io.emit("attendance_update", formatted);
         }
 
-        res.status(201).json(attendance);
+        res.status(201).json(formatted);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -64,18 +70,23 @@ router.get("/history", protect, async (req, res) => {
         // Security/Admin can see all, Member only sees their own
         const isMember = ['folk_member', 'youth'].includes(req.user.role);
 
-        const where = isMember
+        const filter = isMember
             ? { userId: req.user.id }
             : (devoteeId ? { userId: devoteeId } : {});
 
-        const history = await prisma.attendance.findMany({
-            where,
-            include: { user: { select: { id: true, displayName: true, spiritualName: true } } },
-            orderBy: { checkInTime: "desc" },
-            take: 50
-        });
+        const history = await Attendance.find(filter)
+            .populate('userId', 'displayName spiritualName')
+            .sort({ checkInTime: -1 })
+            .limit(50)
+            .lean();
 
-        res.json(history);
+        const formatted = history.map(h => ({
+            ...h,
+            id: h._id,
+            user: { ...h.userId, id: h.userId._id }
+        }));
+
+        res.json(formatted);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -88,15 +99,15 @@ router.get("/stats", protect, async (req, res) => {
         today.setHours(0, 0, 0, 0);
 
         const [count, pendingSankirtan, sankirtanLogs, sadhanaLogs] = await Promise.all([
-            prisma.attendance.count({ where: { checkInTime: { gte: today } } }),
-            prisma.sankirtanLog.count({ where: { status: "pending" } }),
-            prisma.sankirtanLog.findMany({ where: { status: "approved" }, select: { points: true } }),
-            prisma.sadhanaLog.findMany({ where: { date: { gte: today } }, select: { japaRounds: true } })
+            Attendance.countDocuments({ checkInTime: { $gte: today } }),
+            SankirtanLog.countDocuments({ status: "pending" }),
+            SankirtanLog.find({ status: "approved" }, 'points').lean(),
+            SadhanaLog.find({ date: { $gte: today } }, 'japaRounds').lean()
         ]);
 
-        const totalSankirtanPts = sankirtanLogs.reduce((sum, log) => sum + log.points, 0);
+        const totalSankirtanPts = sankirtanLogs.reduce((sum, log) => sum + (log.points || 0), 0);
         const avgJapa = sadhanaLogs.length > 0
-            ? (sadhanaLogs.reduce((sum, log) => sum + log.japaRounds, 0) / sadhanaLogs.length).toFixed(1)
+            ? (sadhanaLogs.reduce((sum, log) => sum + (log.japaRounds || 0), 0) / sadhanaLogs.length).toFixed(1)
             : "0";
 
         res.json({

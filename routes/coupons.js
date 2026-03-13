@@ -1,5 +1,5 @@
 import express from "express";
-import { prisma } from "../lib/providers.js";
+import Coupon from "../models/Coupon.js";
 import { protect, requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -7,15 +7,20 @@ const router = express.Router();
 // GET /api/coupons (Admin: all, Member: their own)
 router.get("/", protect, async (req, res) => {
     try {
-        let where = {};
+        let filter = {};
         if (['folk_member', 'youth'].includes(req.user.role)) {
-            where.assignedTo = req.user.id;
+            filter.assignedTo = req.user.id;
         }
-        const coupons = await prisma.coupon.findMany({
-            where,
-            orderBy: { createdAt: "desc" }
-        });
-        res.json(coupons);
+        const coupons = await Coupon.find(filter)
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const formatted = coupons.map(c => ({
+            ...c,
+            id: c._id
+        }));
+
+        res.json(formatted);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -25,19 +30,19 @@ router.get("/", protect, async (req, res) => {
 router.post("/", protect, requireRole("admin", "guide", "folk_admin", "folk_guide"), async (req, res) => {
     try {
         const { code, type, event, expiryDate, assignedTo } = req.body;
-        const coupon = await prisma.coupon.create({
-            data: {
-                code,
-                type,
-                event,
-                expiryDate: new Date(expiryDate),
-                assignedTo: assignedTo || null
-            }
+        const coupon = await Coupon.create({
+            code,
+            type,
+            event,
+            expiryDate: new Date(expiryDate),
+            assignedTo: assignedTo || null
         });
 
+        const formatted = { ...coupon.toObject(), id: coupon._id };
+
         // Broadcast creation to admins or assigned user
-        req.app.get("io").emit("new_coupon", coupon);
-        res.status(201).json(coupon);
+        req.app.get("io").emit("new_coupon", formatted);
+        res.status(201).json(formatted);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -46,7 +51,7 @@ router.post("/", protect, requireRole("admin", "guide", "folk_admin", "folk_guid
 // PUT /api/coupons/:id/use (Mark as used)
 router.put("/:id/use", protect, async (req, res) => {
     try {
-        const coupon = await prisma.coupon.findUnique({ where: { id: req.params.id } });
+        const coupon = await Coupon.findById(req.params.id);
         if (!coupon) return res.status(404).json({ message: "Not found" });
 
         // allow security/admin/guide to scan and mark used
@@ -54,13 +59,13 @@ router.put("/:id/use", protect, async (req, res) => {
             return res.status(403).json({ message: "Forbidden" });
         }
 
-        const updated = await prisma.coupon.update({
-            where: { id: req.params.id },
-            data: { isUsed: true }
-        });
+        coupon.isUsed = true;
+        await coupon.save();
 
-        req.app.get("io").emit("coupon_used", updated);
-        res.json(updated);
+        const formatted = { ...coupon.toObject(), id: coupon._id };
+
+        req.app.get("io").emit("coupon_used", formatted);
+        res.json(formatted);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

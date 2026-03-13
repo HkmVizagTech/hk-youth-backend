@@ -1,7 +1,8 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { prisma, LiveOTPProvider } from "../lib/providers.js";
+import User from "../models/User.js";
+import { LiveOTPProvider } from "../lib/providers.js";
 
 const router = express.Router();
 
@@ -26,25 +27,21 @@ router.post("/otp/verify", async (req, res) => {
     if (!verify.valid) return res.status(400).json({ message: "Invalid or expired OTP" });
 
     // Find or create User
-    let user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { phone: identifier },
-          { email: identifier }
-        ]
-      }
+    let user = await User.findOne({
+      $or: [
+        { phone: identifier },
+        { email: identifier }
+      ]
     });
 
     let isNewUser = false;
     if (!user) {
       isNewUser = true;
-      user = await prisma.user.create({
-        data: {
-          displayName: name || identifier,
-          phone: identifier.includes('@') ? null : identifier,
-          email: identifier.includes('@') ? identifier : null,
-          role: 'folk_member'
-        }
+      user = await User.create({
+        displayName: name || identifier,
+        phone: identifier.includes('@') ? null : identifier,
+        email: identifier.includes('@') ? identifier : null,
+        role: 'folk_member'
       });
     }
 
@@ -66,9 +63,7 @@ router.post("/login", async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: "Email and password required" });
 
-    const user = await prisma.user.findUnique({
-      where: { email }
-    });
+    const user = await User.findOne({ email });
 
     if (!user) return res.status(401).json({ message: "Invalid email or password" });
 
@@ -107,7 +102,7 @@ router.get("/me", async (req, res) => {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(401).json({ message: "No token" });
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
-    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+    const user = await User.findById(decoded.id);
     res.json(user);
   } catch (err) {
     res.status(401).json({ message: "Unauthorized" });

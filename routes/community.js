@@ -1,5 +1,7 @@
 import express from "express";
-import { prisma } from "../lib/providers.js";
+import Circle from "../models/Circle.js";
+import User from "../models/User.js";
+import SadhanaLog from "../models/SadhanaLog.js";
 import { protect } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -7,13 +9,18 @@ const router = express.Router();
 // GET /api/community/circles
 router.get("/circles", protect, async (req, res) => {
   try {
-    const circles = await prisma.circle.findMany({
-      include: {
-        leader: { select: { id: true, displayName: true, spiritualName: true } },
-        _count: { select: { members: true } }
-      }
-    });
-    res.json(circles);
+    const circles = await Circle.find()
+      .populate('leaderId', 'displayName spiritualName')
+      .lean();
+
+    const formatted = circles.map(c => ({
+      ...c,
+      id: c._id,
+      leader: c.leaderId ? { ...c.leaderId, id: c.leaderId._id } : null,
+      memberCount: c.memberIds?.length || 0
+    }));
+
+    res.json(formatted);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -22,31 +29,19 @@ router.get("/circles", protect, async (req, res) => {
 // POST /api/community/circles/:id/join — Toggle join
 router.post("/circles/:id/join", protect, async (req, res) => {
   try {
-    const circle = await prisma.circle.findUnique({
-      where: { id: req.params.id },
-      include: { members: { select: { id: true } } }
-    });
+    const circle = await Circle.findById(req.params.id);
+    if (!circle) return res.status(404).json({ message: "Circle not found" });
 
-    const isMember = circle.members.some(m => m.id === req.user.id);
+    const isMember = circle.memberIds.includes(req.user.id);
 
     if (isMember) {
-      await prisma.circle.update({
-        where: { id: req.params.id },
-        data: { members: { disconnect: { id: req.user.id } } }
-      });
+      circle.memberIds = circle.memberIds.filter(id => id.toString() !== req.user.id);
     } else {
-      await prisma.circle.update({
-        where: { id: req.params.id },
-        data: { members: { connect: { id: req.user.id } } }
-      });
+      circle.memberIds.push(req.user.id);
     }
 
-    const updated = await prisma.circle.findUnique({
-      where: { id: req.params.id },
-      include: { _count: { select: { members: true } } }
-    });
-
-    res.json({ joined: !isMember, memberCount: updated._count.members });
+    await circle.save();
+    res.json({ joined: !isMember, memberCount: circle.memberIds.length });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -58,29 +53,26 @@ router.get("/devotees", protect, async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const users = await prisma.user.findMany({
-      where: { id: { not: req.user.id } },
-      select: {
-        id: true,
-        displayName: true,
-        spiritualName: true,
-        role: true,
-        phone: true,
-        center: { select: { name: true } },
-        batch: { select: { name: true } },
-        _count: { select: { followers: true } },
-        sadhanaLogs: {
-          where: { date: { gte: today } },
-          select: { japaRounds: true },
-          take: 1
-        }
-      },
-      take: 30
-    });
+    const users = await User.find({ _id: { $ne: req.user.id } })
+      .populate('centerId', 'name')
+      .populate('batchId', 'name')
+      .limit(30)
+      .lean();
 
-    const mappedUsers = users.map(u => ({
-      ...u,
-      todayJapa: u.sadhanaLogs.length > 0 ? u.sadhanaLogs[0].japaRounds : 0
+    const mappedUsers = await Promise.all(users.map(async u => {
+      const sadhana = await SadhanaLog.findOne({
+        userId: u._id,
+        date: { $gte: today }
+      }).lean();
+
+      return {
+        ...u,
+        id: u._id,
+        center: u.centerId ? { name: u.centerId.name } : null,
+        batch: u.batchId ? { name: u.batchId.name } : null,
+        followerCount: u.followerIds?.length || 0,
+        todayJapa: sadhana ? sadhana.japaRounds : 0
+      };
     }));
 
     res.json(mappedUsers);
@@ -92,24 +84,22 @@ router.get("/devotees", protect, async (req, res) => {
 // POST /api/community/shelter/:id
 router.post("/shelter/:id", protect, async (req, res) => {
   try {
-    const me = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      include: { following: { select: { id: true } } }
-    });
+    const me = await User.findById(req.user.id);
+    const target = await User.findById(req.params.id);
 
-    const alreadyFollowing = me.following.some(f => f.id === req.params.id);
+    if (!target) return res.status(404).json({ message: "User not found" });
+
+    const alreadyFollowing = me.followingIds.includes(req.params.id);
 
     if (alreadyFollowing) {
-      await prisma.user.update({
-        where: { id: req.user.id },
-        data: { following: { disconnect: { id: req.params.id } } }
-      });
+      me.followingIds = me.followingIds.filter(id => id.toString() !== req.params.id);
+      target.followerIds = target.followerIds.filter(id => id.toString() !== req.user.id);
     } else {
-      await prisma.user.update({
-        where: { id: req.user.id },
-        data: { following: { connect: { id: req.params.id } } }
-      });
+      me.followingIds.push(req.params.id);
+      target.followerIds.push(req.user.id);
     }
+
+    await Promise.all([me.save(), target.save()]);
 
     res.json({ sheltered: !alreadyFollowing });
   } catch (err) {

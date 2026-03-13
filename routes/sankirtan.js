@@ -1,5 +1,6 @@
 import express from "express";
-import { prisma } from "../lib/providers.js";
+import SankirtanLog from "../models/SankirtanLog.js";
+import User from "../models/User.js";
 import { protect } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -7,11 +8,12 @@ const router = express.Router();
 // GET /api/sankirtan - Get user's sankirtan logs
 router.get("/", protect, async (req, res) => {
     try {
-        const logs = await prisma.sankirtanLog.findMany({
-            where: { userId: req.user.id },
-            orderBy: { createdAt: "desc" }
-        });
-        res.json(logs);
+        const logs = await SankirtanLog.find({ userId: req.user.id })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const formatted = logs.map(l => ({ ...l, id: l._id }));
+        res.json(formatted);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -20,27 +22,30 @@ router.get("/", protect, async (req, res) => {
 // GET /api/sankirtan/leaderboard - Get general leaderboard
 router.get("/leaderboard", protect, async (req, res) => {
     try {
-        const users = await prisma.user.findMany({
-            include: {
-                sankirtanLogs: {
-                    where: { status: "approved" }
-                }
-            }
-        });
+        const users = await User.find()
+            .populate('batchId', 'name')
+            .lean();
 
-        const leaderboard = users.map(user => {
-            const totalPoints = user.sankirtanLogs.reduce((sum, log) => sum + log.points, 0);
+        const leaderboard = await Promise.all(users.map(async user => {
+            const logs = await SankirtanLog.find({
+                userId: user._id,
+                status: "approved"
+            }).lean();
+
+            const totalPoints = logs.reduce((sum, log) => sum + (log.points || 0), 0);
             return {
-                id: user.id,
+                id: user._id,
                 name: user.spiritualName || user.displayName,
                 points: totalPoints,
-                batch: user.batch?.name
+                batch: user.batchId ? user.batchId.name : null
             };
-        })
+        }));
+
+        const sorted = leaderboard
             .filter(u => u.points > 0)
             .sort((a, b) => b.points - a.points);
 
-        res.json(leaderboard);
+        res.json(sorted);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -59,19 +64,18 @@ router.post("/", protect, async (req, res) => {
 
         const points = (mb * 20) + (b * 10) + (m * 5) + (s * 2);
 
-        const log = await prisma.sankirtanLog.create({
-            data: {
-                userId: req.user.id,
-                mahaBig: mb,
-                big: b,
-                medium: m,
-                small: s,
-                points: points,
-                location: location || "",
-                status: "pending"
-            }
+        const log = await SankirtanLog.create({
+            userId: req.user.id,
+            mahaBig: mb,
+            big: b,
+            medium: m,
+            small: s,
+            points: points,
+            location: location || "",
+            status: "pending"
         });
-        res.status(201).json(log);
+
+        res.status(201).json({ ...log.toObject(), id: log._id });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -80,14 +84,18 @@ router.post("/", protect, async (req, res) => {
 // GET /api/sankirtan/pending - Get pending logs for Guide approval
 router.get("/pending", protect, async (req, res) => {
     try {
-        const logs = await prisma.sankirtanLog.findMany({
-            where: { status: "pending" },
-            include: {
-                user: { select: { id: true, displayName: true, spiritualName: true } }
-            },
-            orderBy: { createdAt: "desc" }
-        });
-        res.json(logs);
+        const logs = await SankirtanLog.find({ status: "pending" })
+            .populate('userId', 'displayName spiritualName')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const formatted = logs.map(l => ({
+            ...l,
+            id: l._id,
+            user: l.userId ? { ...l.userId, id: l.userId._id } : null
+        }));
+
+        res.json(formatted);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -103,12 +111,13 @@ router.post("/approve/:id", protect, async (req, res) => {
             return res.status(400).json({ message: "Invalid action" });
         }
 
-        const updatedLog = await prisma.sankirtanLog.update({
-            where: { id: logId },
-            data: { status: action === "approve" ? "approved" : "rejected" }
-        });
+        const updatedLog = await SankirtanLog.findByIdAndUpdate(
+            logId,
+            { status: action === "approve" ? "approved" : "rejected" },
+            { new: true }
+        ).lean();
 
-        res.json(updatedLog);
+        res.json({ ...updatedLog, id: updatedLog._id });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
