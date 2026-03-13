@@ -1,8 +1,9 @@
+import dotenv from "dotenv";
+dotenv.config();
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
-import dotenv from "dotenv";
 import { prisma } from "./lib/providers.js";
 
 import authRoutes from "./routes/auth.js";
@@ -16,7 +17,6 @@ import attendanceRoutes from "./routes/attendance.js";
 import sankirtanRoutes from "./routes/sankirtan.js";
 import { setupSockets } from "./sockets/index.js";
 
-dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
