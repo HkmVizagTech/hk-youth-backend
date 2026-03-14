@@ -1,23 +1,17 @@
-import jwt from "jsonwebtoken";
-
+// AUTH SYSTEM REMOVED - EVERYONE IS ADMIN BY DEFAULT
 export const protect = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "No token, authorization denied" });
-  }
-  try {
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch {
-    res.status(401).json({ message: "Token is not valid" });
-  }
+  // Injecting default Admin session
+  req.user = {
+    id: "69b3b15231109afc1b41d619",
+    role: "folk_admin",
+    name: "Temple Admin",
+    displayName: "Temple Admin"
+  };
+  next();
 };
 
 export const requireRole = (...roles) => (req, res, next) => {
-  if (!roles.includes(req.user.role)) {
-    return res.status(403).json({ message: "Forbidden: insufficient role" });
-  }
+  // Always allow
   next();
 };
+

@@ -3,21 +3,18 @@ import Message from "../models/Message.js";
 import Thread from "../models/Thread.js";
 
 export const setupSockets = (io) => {
-  // Auth middleware for sockets
-  io.use((socket, next) => {
-    const token = socket.handshake.auth?.token;
-    if (!token) return next(new Error("Authentication error"));
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
-      socket.user = decoded;
-      next();
-    } catch {
-      next(new Error("Invalid token"));
-    }
-  });
+  const DEFAULT_ADMIN_ID = "69b3b15231109afc1b41d619";
 
   io.on("connection", (socket) => {
+    // Inject default user for all socket connections
+    socket.user = {
+      id: DEFAULT_ADMIN_ID,
+      role: "folk_admin",
+      name: "Temple Admin"
+    };
+
     const userId = socket.user.id;
+
     console.log(`🔌 User connected: ${socket.user.name || 'Unknown'} (${socket.id})`);
 
     // Join user's personal room (for direct notifications)
