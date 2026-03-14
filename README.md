@@ -62,3 +62,19 @@ For Node backend (WebSocket + Express): Render or self-hosted Node instance.
 
 All Glories to Srila Prabhupada!
 Sri Sri Radha Madanmohan ki Jai!
+
+## Mobile Application (React Native)
+The mobile app is built with Expo and is located in the `hk-youth-mobile` directory.
+
+### Setup
+1. `cd hk-youth-mobile`
+2. `npm install`
+3. `npx expo start`
+
+Use the Expo Go app on your phone to scan the QR code and preview the application.
+
+### Features
+- Native Login flow (Email/Password)
+- Real-time statistics dashboard
+- Secure session storage using AsyncStorage
+- Native navigation with React Navigation
